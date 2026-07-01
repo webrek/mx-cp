@@ -62,13 +62,31 @@ municipio(cvegeo)?.nombre; // "Guadalajara"
 <MapaMunicipios estado={cveEnt} data={{ [cvegeo]: 1 }} />;
 ```
 
+## Búsquedas inversas
+
+```ts
+import { cpsDeMunicipio, buscaColonia } from "@webrek/mx-cp";
+
+await cpsDeMunicipio("09015"); // ["06000", "06010", …]  (Cuauhtémoc)
+
+// Colonias por nombre (sin acentos ni mayúsculas), ideal para typeahead.
+await buscaColonia("roma", { cveEnt: "09", limite: 10 });
+// [{ nombre: "Roma Norte", cp: "06700", cvegeo: "09015", municipio: "Cuauhtémoc", … }]
+
+await buscaColonia("centro"); // nacional (carga los 32 índices, más pesado)
+```
+
+Acota con `cveEnt` para que sea rápido (recomendado en un typeahead).
+
 ## API
 
-| Export            | Descripción                                                            |
-| ----------------- | ---------------------------------------------------------------------- |
-| `buscaCP(cp)`     | `Promise<ResultadoCP \| null>`. Carga el shard del prefijo y resuelve. |
-| `esCPValido(cp)`  | `boolean`. ¿Tiene forma de CP (5 dígitos)?                             |
-| `TIPOS` / `ZONAS` | Catálogos de tipos de asentamiento y de zona.                          |
+| Export                       | Descripción                                                            |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| `buscaCP(cp)`                | `Promise<ResultadoCP \| null>`. Carga el shard del prefijo y resuelve. |
+| `cpsDeMunicipio(cvegeo)`     | `Promise<string[]>`. CP de un municipio.                               |
+| `buscaColonia(texto, opts?)` | `Promise<Coincidencia[]>`. Busca colonias por nombre (typeahead).      |
+| `esCPValido(cp)`             | `boolean`. ¿Tiene forma de CP (5 dígitos)?                             |
+| `TIPOS` / `ZONAS`            | Catálogos de tipos de asentamiento y de zona.                          |
 
 `ResultadoCP`: `cp`, `cveEnt`, `estado`, `cveMun`, `cvegeo`, `municipio`,
 `ciudad`, `zona`, `asentamientos: { nombre, tipo }[]`.

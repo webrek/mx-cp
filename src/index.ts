@@ -1,4 +1,4 @@
-import { CARGADORES, TIPOS, ZONAS } from "./generado";
+import { CARGADORES, CARGADORES_ESTADO, TIPOS, ZONAS } from "./generado";
 import estadosData from "../data/estados-cp.json";
 import municipiosData from "../data/municipios-cp.json";
 
@@ -84,6 +84,101 @@ export async function buscaCP(cp: string): Promise<ResultadoCP | null> {
     zona: ZONAS[z] ?? "",
     asentamientos: a.map(([nombre, t]) => ({ nombre, tipo: TIPOS[t] ?? "" })),
   };
+}
+
+// ————————————————————————————————————————————————————————————————
+// Búsquedas inversas (índice por estado, carga perezosa por CVE_ENT)
+// ————————————————————————————————————————————————————————————————
+
+interface IndiceEstado {
+  cps: Record<string, string[]>;
+  colonias: [nombre: string, cp: string, cveMun: string, tipoIdx: number][];
+}
+
+const cacheEstado = new Map<string, IndiceEstado>();
+
+async function cargaEstado(cveEnt: string): Promise<IndiceEstado | null> {
+  const hit = cacheEstado.get(cveEnt);
+  if (hit) return hit;
+  const loader = CARGADORES_ESTADO[cveEnt];
+  if (!loader) return null;
+  const mod = await loader();
+  const data = ((mod as { default?: unknown }).default ?? mod) as IndiceEstado;
+  cacheEstado.set(cveEnt, data);
+  return data;
+}
+
+/** Todos los códigos postales de un municipio (por su CVEGEO de 5 dígitos). */
+export async function cpsDeMunicipio(cvegeo: string): Promise<string[]> {
+  const clave = String(cvegeo).trim();
+  if (!/^\d{5}$/.test(clave)) return [];
+  const idx = await cargaEstado(clave.slice(0, 2));
+  return idx?.cps[clave]?.slice() ?? [];
+}
+
+/** Una colonia encontrada al buscar por nombre. */
+export interface Coincidencia {
+  nombre: string;
+  tipo: string;
+  cp: string;
+  cveEnt: string;
+  estado: string;
+  cveMun: string;
+  cvegeo: string;
+  municipio: string;
+}
+
+function normaliza(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Busca colonias/asentamientos por nombre (subcadena, sin acentos ni mayúsculas)
+ * y devuelve las coincidencias con su CP y municipio. Ideal para un typeahead.
+ *
+ * Pasa `cveEnt` para acotar a un estado (rápido, recomendado). Sin `cveEnt`
+ * busca en todo el país, lo que carga los 32 índices — más pesado.
+ */
+export async function buscaColonia(
+  texto: string,
+  opts: { cveEnt?: string; limite?: number } = {},
+): Promise<Coincidencia[]> {
+  const q = normaliza(texto);
+  if (q.length < 2) return [];
+  const limite = opts.limite ?? 20;
+  // Ordenar explícitamente: en JS las claves "10".."32" son índices enteros y
+  // saldrían ANTES que "01".."09" (string). `.sort()` las deja 01..32.
+  const claves = opts.cveEnt
+    ? [String(opts.cveEnt).padStart(2, "0")]
+    : Object.keys(CARGADORES_ESTADO).sort();
+
+  const out: Coincidencia[] = [];
+  for (const ce of claves) {
+    const idx = await cargaEstado(ce);
+    if (!idx) continue;
+    for (const [nombre, cp, cveMun, tipoIdx] of idx.colonias) {
+      if (normaliza(nombre).includes(q)) {
+        const cvegeo = ce + cveMun;
+        out.push({
+          nombre,
+          tipo: TIPOS[tipoIdx] ?? "",
+          cp,
+          cveEnt: ce,
+          estado: ESTADOS[ce] ?? "",
+          cveMun,
+          cvegeo,
+          municipio: MUNICIPIOS[cvegeo] ?? "",
+        });
+        if (out.length >= limite) return out;
+      }
+    }
+  }
+  return out;
 }
 
 export { TIPOS, ZONAS };

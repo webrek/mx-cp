@@ -1,6 +1,6 @@
 {
   "name": "@webrek/mx-cp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Códigos postales de México (SEPOMEX) → estado, municipio (CVEGEO de INEGI) y colonias. Carga por prefijo bajo demanda, sin API key.",
   "keywords": [
     "mexico",

@@ -104,9 +104,36 @@ async function main() {
   await writeFile(resolve(root, "data/estados-cp.json"), JSON.stringify(estados));
   await writeFile(resolve(root, "data/municipios-cp.json"), JSON.stringify(municipios));
 
+  // Índice por estado (pivote inverso): CPs por municipio + colonias buscables.
+  // data/estado/<cveEnt>.json = { cps: {cvegeo:[cp]}, colonias: [[nombre,cp,cveMun,tipoIdx]] }
+  const dirEstado = resolve(root, "data/estado");
+  await rm(dirEstado, { recursive: true, force: true });
+  await mkdir(dirEstado, { recursive: true });
+
+  const porEstado = new Map(); // cveEnt -> { cps, colonias }
+  for (const [cp, val] of porCp) {
+    const cvegeo = val.e + val.m;
+    let idx = porEstado.get(val.e);
+    if (!idx) {
+      idx = { cps: {}, colonias: [] };
+      porEstado.set(val.e, idx);
+    }
+    (idx.cps[cvegeo] ??= []).push(cp);
+    for (const [nombre, tipoIdx] of val.a) idx.colonias.push([nombre, cp, val.m, tipoIdx]);
+  }
+  const clavesEstado = [...porEstado.keys()].sort();
+  for (const ce of clavesEstado) {
+    const idx = porEstado.get(ce);
+    for (const cvegeo of Object.keys(idx.cps)) idx.cps[cvegeo].sort();
+    await writeFile(resolve(dirEstado, `${ce}.json`), JSON.stringify(idx));
+  }
+
   // Cargadores estáticos (para code-splitting del bundler) + tablas.
   const casos = prefijos
     .map((p) => `  ${JSON.stringify(p)}: () => import("../data/cp/${p}.json"),`)
+    .join("\n");
+  const casosEstado = clavesEstado
+    .map((c) => `  ${JSON.stringify(c)}: () => import("../data/estado/${c}.json"),`)
     .join("\n");
   const ts = `// GENERADO por scripts/build-cp.mjs — no editar a mano.
 /** Tipos de asentamiento (índice = código guardado en los shards). */
@@ -117,12 +144,17 @@ export const ZONAS: readonly string[] = ${JSON.stringify(ZONAS)};
 export const CARGADORES: Record<string, () => Promise<{ default: unknown }>> = {
 ${casos}
 };
+/** Carga perezosa del índice inverso por estado (CVE_ENT). */
+export const CARGADORES_ESTADO: Record<string, () => Promise<{ default: unknown }>> = {
+${casosEstado}
+};
 `;
   await writeFile(resolve(root, "src/generado.ts"), ts);
 
   console.log(
     `CPs: ${porCp.size} · prefijos: ${prefijos.length} · tipos: ${TIPOS.length} · ` +
-      `estados: ${Object.keys(estados).length} · municipios: ${Object.keys(municipios).length}`,
+      `estados: ${Object.keys(estados).length} · municipios: ${Object.keys(municipios).length} · ` +
+      `índices-estado: ${clavesEstado.length}`,
   );
 }
 
