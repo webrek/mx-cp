@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a problem with the package
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you get instead?
+    validations:
+      required: true
+  - type: input
+    id: cp
+    attributes:
+      label: Postal code involved
+      description: Which CP (and colonia, if relevant) shows the problem. Mask any real personal data.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Data (CP / colonias / CVEGEO catalog)
+        - Lookup / API
+        - Types
+        - Build / packaging
+        - Docs
+    validations:
+      required: true
+  - type: input
+    id: package-version
+    attributes:
+      label: Package version
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node version
+    validations:
+      required: true
